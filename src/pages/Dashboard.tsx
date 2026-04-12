@@ -38,14 +38,22 @@ const data = [
   { time: "23:59", cpu: 50, ram: 62 },
 ];
 
-const stats = [
-  { label: "Total Devices", value: "156", change: "+12", trend: "up", icon: Server, color: "blue" },
-  { label: "Online", value: "142", change: "91%", trend: "up", icon: CheckCircle2, color: "emerald" },
-  { label: "Alerts", value: "14", change: "-2", trend: "down", icon: AlertCircle, color: "amber" },
-  { label: "Critical", value: "2", change: "0", trend: "neutral", icon: XCircle, color: "red" },
-];
+import { useDevices } from "@/src/lib/DeviceContext";
+import { useAlerts } from "@/src/lib/AlertContext";
 
 export default function Dashboard() {
+  const { devices } = useDevices();
+  const { alerts } = useAlerts();
+
+  const recentAlerts = alerts.slice(0, 5);
+
+  const stats = [
+    { label: "Total Devices", value: devices.length.toString(), change: "+0", trend: "neutral", icon: Server, color: "blue" },
+    { label: "Online", value: devices.filter(d => d.status === "UP").length.toString(), change: devices.length > 0 ? `${Math.round((devices.filter(d => d.status === "UP").length / devices.length) * 100)}%` : "0%", trend: "up", icon: CheckCircle2, color: "emerald" },
+    { label: "Alerts", value: alerts.filter(a => a.status === "active").length.toString(), change: "0", trend: "neutral", icon: AlertCircle, color: "amber" },
+    { label: "Critical", value: alerts.filter(a => a.status === "active" && a.severity === "critical").length.toString(), change: "0", trend: "neutral", icon: XCircle, color: "red" },
+  ];
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -169,13 +177,7 @@ export default function Dashboard() {
             <CardTitle className="text-lg font-bold">Recent Alerts</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {[
-              { device: "web-srv-01", msg: "High CPU usage detected (92%)", time: "2m ago", severity: "critical" },
-              { device: "edge-router-01", msg: "Interface Gi0/1 status changed to DOWN", time: "15m ago", severity: "critical" },
-              { device: "db-srv-01", msg: "Low disk space on /var/lib/mysql", time: "1h ago", severity: "warning" },
-              { device: "core-switch-02", msg: "Fan failure detected in slot 1", time: "3h ago", severity: "warning" },
-              { device: "backup-nas", msg: "Scheduled backup failed", time: "5h ago", severity: "warning" },
-            ].map((alert, i) => (
+            {recentAlerts.map((alert, i) => (
               <div key={i} className="flex gap-4 group cursor-pointer">
                 <div className={cn(
                   "w-1 h-12 rounded-full mt-1",

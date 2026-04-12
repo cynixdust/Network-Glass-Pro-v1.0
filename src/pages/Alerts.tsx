@@ -18,26 +18,19 @@ import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/lib/utils";
 import { toast } from "sonner";
 
-const initialAlerts = [
-  { id: "1", device: "web-srv-01", msg: "High CPU usage detected (92%)", time: "2m ago", severity: "critical", status: "active" },
-  { id: "2", device: "edge-router-01", msg: "Interface Gi0/1 status changed to DOWN", time: "15m ago", severity: "critical", status: "active" },
-  { id: "3", device: "db-srv-01", msg: "Low disk space on /var/lib/mysql (5% remaining)", time: "1h ago", severity: "warning", status: "active" },
-  { id: "4", device: "core-switch-02", msg: "Fan failure detected in slot 1", time: "3h ago", severity: "warning", status: "active" },
-  { id: "5", device: "backup-nas", msg: "Scheduled backup failed: Connection timeout", time: "5h ago", severity: "warning", status: "acknowledged" },
-  { id: "6", device: "ups-dc-01", msg: "Battery self-test passed", time: "1d ago", severity: "info", status: "resolved" },
-];
+import { useAlerts } from "@/src/lib/AlertContext";
 
 export default function Alerts() {
-  const [alerts, setAlerts] = useState(initialAlerts);
+  const { alerts, acknowledgeAlert, resolveAlert } = useAlerts();
   const [filter, setFilter] = useState("all");
 
   const acknowledge = (id: string) => {
-    setAlerts(alerts.map(a => a.id === id ? { ...a, status: "acknowledged" } : a));
+    acknowledgeAlert(id);
     toast.success("Alert acknowledged");
   };
 
   const resolve = (id: string) => {
-    setAlerts(alerts.map(a => a.id === id ? { ...a, status: "resolved" } : a));
+    resolveAlert(id);
     toast.success("Alert marked as resolved");
   };
 

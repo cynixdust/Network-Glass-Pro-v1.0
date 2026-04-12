@@ -16,12 +16,19 @@ interface LocationContextType {
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
-  const [locations, setLocations] = useState<LocationCategory[]>([
-    { id: "1", name: "Data Center A", description: "Primary production facility" },
-    { id: "2", name: "Site B", description: "Secondary disaster recovery site" },
-    { id: "3", name: "Office 1", description: "Main corporate headquarters" },
-    { id: "4", name: "Cloud (AWS)", description: "AWS US-East-1 region" },
-  ]);
+  const [locations, setLocations] = useState<LocationCategory[]>(() => {
+    const saved = localStorage.getItem("app_locations");
+    return saved ? JSON.parse(saved) : [
+      { id: "1", name: "Data Center A", description: "Primary production facility" },
+      { id: "2", name: "Site B", description: "Secondary disaster recovery site" },
+      { id: "3", name: "Office 1", description: "Main corporate headquarters" },
+      { id: "4", name: "Cloud (AWS)", description: "AWS US-East-1 region" },
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem("app_locations", JSON.stringify(locations));
+  }, [locations]);
 
   const addLocation = (location: Omit<LocationCategory, "id">) => {
     const newLocation = {

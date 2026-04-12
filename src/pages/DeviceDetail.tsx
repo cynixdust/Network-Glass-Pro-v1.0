@@ -40,20 +40,31 @@ const performanceData = [
   { time: "11:30", cpu: 50, ram: 61, network: 140 },
 ];
 
+import { useDevices } from "@/src/lib/DeviceContext";
+
 export default function DeviceDetail() {
   const { id } = useParams();
+  const { devices } = useDevices();
 
-  // Mock device data
+  const foundDevice = devices.find(d => d.id === id);
+
+  if (!foundDevice) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+        <h2 className="text-2xl font-bold text-slate-900">Device Not Found</h2>
+        <p className="text-slate-500">The device you are looking for does not exist or has been removed.</p>
+        <Link to="/devices">
+          <Button className="bg-brand-blue text-white rounded-xl">Back to Inventory</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  // Mock extended data for the found device
   const device = {
-    id,
-    hostname: "web-srv-01",
-    ip: "192.168.1.10",
-    type: "SERVER",
-    status: "WARNING",
+    ...foundDevice,
     os: "Ubuntu 22.04 LTS",
     uptime: "14d 6h 22m",
-    location: "Site B - Rack 4 - Slot 12",
-    lastSeen: "1m ago",
     mac: "00:1A:2B:3C:4D:5E",
     cpu: "8 Core Intel Xeon",
     ram: "32GB DDR4",
