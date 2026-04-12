@@ -27,11 +27,11 @@
       "package.json"
     ],
     "win": {
+      "executableName": "NetworkGlassPro",
       "target": [
         "nsis",
         "msi"
-      ],
-      "icon": "public/favicon.ico"
+      ]
     },
     "nsis": {
       "oneClick": false,

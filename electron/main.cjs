@@ -10,8 +10,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs')
-    },
-    icon: path.join(__dirname, '../public/favicon.ico')
+    }
   });
 
   // In production, load the index.html file from the dist folder
