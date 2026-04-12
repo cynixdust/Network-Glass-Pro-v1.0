@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String?
+  role          String    @default("READ_ONLY") // SUPER_ADMIN, ADMIN, NETWORK_ENGINEER, READ_ONLY, ALERT_MANAGER
+  mfaEnabled    Boolean   @default(false)
+  mfaSecret     String?
+  lastLogin     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  auditLogs     AuditLog[]
+}
+
+model Device {
+  id              String    @id @default(cuid())
+  hostname        String
+  ipAddress       String    @unique
+  macAddress      String?
+  os              String?
+  type            String    @default("SERVER") // SERVER, ROUTER, SWITCH, FIREWALL, VM, IOT
+  status          String    @default("UNKNOWN") // UP, DOWN, WARNING, CRITICAL, UNKNOWN
+  location        String?
+  rack            String?
+  slot            String?
+  owner           String?
+  warrantyExpiry  DateTime?
+  lastSeen        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  metrics         Metric[]
+  alerts          Alert[]
+  credentials     Credential[] @relation("DeviceCredentials")
+}
+
+model Metric {
+  id        String   @id @default(cuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  type      String   // CPU, RAM, DISK, LATENCY, PACKET_LOSS, BANDWIDTH_IN, BANDWIDTH_OUT
+  value     Float
+  unit      String?
+  timestamp DateTime @default(now())
+
+  @@index([deviceId, timestamp])
+}
+
+model Alert {
+  id          String    @id @default(cuid())
+  deviceId    String
+  device      Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  severity    String    // INFO, WARNING, CRITICAL
+  message     String
+  status      String    @default("ACTIVE") // ACTIVE, ACKNOWLEDGED, RESOLVED
+  acknowledgedBy String?
+  timestamp   DateTime  @default(now())
+  resolvedAt  DateTime?
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  resource  String?
+  ipAddress String?
+  timestamp DateTime @default(now())
+}
+
+model Credential {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // SNMP_V2, SNMP_V3, SSH, WMI, HTTP_AUTH
+  username    String?
+  password    String?  // Encrypted
+  secret      String?  // For SNMP v3 / SSH Keys (Encrypted)
+  devices     Device[] @relation("DeviceCredentials")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DiscoveryJob {
+  id          String   @id @default(cuid())
+  name        String
+  networkRange String   // CIDR
+  schedule    String?  // Cron expression
+  status      String   @default("IDLE") // IDLE, RUNNING, COMPLETED, FAILED
+  lastRun     DateTime?
+  createdAt   DateTime @default(now())
+}
