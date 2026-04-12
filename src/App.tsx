@@ -11,6 +11,8 @@ import { AuthProvider, useAuth } from "./lib/AuthContext";
 import { LocationProvider } from "./lib/LocationContext";
 import { DeviceProvider } from "./lib/DeviceContext";
 import { AlertProvider } from "./lib/AlertContext";
+import { IPAMProvider } from "./lib/IPAMContext";
+import { DiscoveryProvider } from "./lib/DiscoveryContext";
 import { SettingsProvider } from "./lib/SettingsContext";
 import { Toaster } from "./components/ui/sonner";
 import { ThemeProvider } from "next-themes";
@@ -79,27 +81,31 @@ export default function App() {
             <LocationProvider>
               <DeviceProvider>
                 <AlertProvider>
-                  <Router>
-                    <AppLayout>
-                      <Routes>
-                        <Route path="/" element={<Dashboard />} />
-                        <Route path="/devices" element={<Devices />} />
-                        <Route path="/devices/:id" element={<DeviceDetail />} />
-                        <Route path="/topology" element={<Topology />} />
-                        <Route path="/alerts" element={<Alerts />} />
-                        <Route path="/discovery" element={<Discovery />} />
-                        <Route path="/reports" element={<Reports />} />
-                        <Route path="/security" element={<Security />} />
-                        <Route path="/ipam" element={<IPAM />} />
-                        <Route path="/locations" element={<Locations />} />
-                        <Route path="/racks" element={<RackManagement />} />
-                        <Route path="/tools" element={<Tools />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="*" element={<Navigate to="/" replace />} />
-                      </Routes>
-                    </AppLayout>
-                    <Toaster position="top-right" />
-                  </Router>
+                  <IPAMProvider>
+                    <DiscoveryProvider>
+                      <Router>
+                        <AppLayout>
+                          <Routes>
+                            <Route path="/" element={<Dashboard />} />
+                            <Route path="/devices" element={<Devices />} />
+                            <Route path="/devices/:id" element={<DeviceDetail />} />
+                            <Route path="/topology" element={<Topology />} />
+                            <Route path="/alerts" element={<Alerts />} />
+                            <Route path="/discovery" element={<Discovery />} />
+                            <Route path="/reports" element={<Reports />} />
+                            <Route path="/security" element={<Security />} />
+                            <Route path="/ipam" element={<IPAM />} />
+                            <Route path="/locations" element={<Locations />} />
+                            <Route path="/racks" element={<RackManagement />} />
+                            <Route path="/tools" element={<Tools />} />
+                            <Route path="/settings" element={<Settings />} />
+                            <Route path="*" element={<Navigate to="/" replace />} />
+                          </Routes>
+                        </AppLayout>
+                        <Toaster position="top-right" />
+                      </Router>
+                    </DiscoveryProvider>
+                  </IPAMProvider>
                 </AlertProvider>
               </DeviceProvider>
             </LocationProvider>

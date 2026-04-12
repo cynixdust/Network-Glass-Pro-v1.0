@@ -17,13 +17,49 @@ import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/lib/utils";
 
-const discoveryJobs = [
-  { id: "1", name: "Core Network Scan", range: "10.0.0.0/24", status: "COMPLETED", lastRun: "2h ago", devicesFound: 42 },
-  { id: "2", name: "Office WiFi Discovery", range: "192.168.2.0/24", status: "RUNNING", lastRun: "Now", devicesFound: 15, progress: 65 },
-  { id: "3", name: "DMZ Audit", range: "172.16.0.0/24", status: "SCHEDULED", lastRun: "1d ago", devicesFound: 0 },
-];
+import { useDiscovery, DiscoveryJob } from "@/src/lib/DiscoveryContext";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,
+  DialogFooter
+} from "@/src/components/ui/dialog";
+import { Label } from "@/src/components/ui/label";
+import { Square, Trash2 as TrashIcon, Edit } from "lucide-react";
 
 export default function Discovery() {
+  const { jobs, addJob, updateJob, deleteJob, startJob, stopJob } = useDiscovery();
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState<DiscoveryJob | null>(null);
+  const [formData, setFormData] = useState({ name: "", range: "" });
+
+  const handleAddJob = (e: React.FormEvent) => {
+    e.preventDefault();
+    addJob(formData);
+    setIsAddDialogOpen(false);
+    setFormData({ name: "", range: "" });
+    toast.success("Discovery job created.");
+  };
+
+  const handleEditJob = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingJob) {
+      updateJob(editingJob.id, formData);
+      setIsEditDialogOpen(false);
+      setEditingJob(null);
+      toast.success("Discovery job updated.");
+    }
+  };
+
+  const openEditDialog = (job: DiscoveryJob) => {
+    setEditingJob(job);
+    setFormData({ name: job.name, range: job.range });
+    setIsEditDialogOpen(true);
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-end">
@@ -31,7 +67,13 @@ export default function Discovery() {
           <h2 className="text-3xl font-bold tracking-tight text-slate-900">Network Discovery</h2>
           <p className="text-slate-500 mt-1">Automatically find and onboard new assets across your subnets.</p>
         </div>
-        <Button className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl gap-2 shadow-lg shadow-brand-blue/20">
+        <Button 
+          onClick={() => {
+            setFormData({ name: "", range: "" });
+            setIsAddDialogOpen(true);
+          }}
+          className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl gap-2 shadow-lg shadow-brand-blue/20"
+        >
           <Plus className="w-4 h-4" />
           New Scan Job
         </Button>
@@ -43,8 +85,12 @@ export default function Discovery() {
             <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Active Scans</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">1</div>
-            <p className="text-xs text-slate-400 mt-1">Scanning 192.168.2.0/24</p>
+            <div className="text-2xl font-bold text-slate-900">
+              {jobs.filter(j => j.status === "RUNNING").length}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              {jobs.find(j => j.status === "RUNNING")?.range || "No active scans"}
+            </p>
           </CardContent>
         </Card>
         <Card className="border-none shadow-sm rounded-2xl bg-white">
@@ -52,8 +98,10 @@ export default function Discovery() {
             <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Devices Found (24h)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">57</div>
-            <p className="text-xs text-slate-400 mt-1">12 new assets identified</p>
+            <div className="text-2xl font-bold text-emerald-600">
+              {jobs.reduce((acc, j) => acc + j.devicesFound, 0)}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">From all discovery jobs</p>
           </CardContent>
         </Card>
         <Card className="border-none shadow-sm rounded-2xl bg-white">
@@ -61,8 +109,8 @@ export default function Discovery() {
             <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Subnets Covered</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-brand-blue">14</div>
-            <p className="text-xs text-slate-400 mt-1">Across 3 physical sites</p>
+            <div className="text-2xl font-bold text-brand-blue">{jobs.length}</div>
+            <p className="text-xs text-slate-400 mt-1">Configured discovery ranges</p>
           </CardContent>
         </Card>
       </div>
@@ -74,13 +122,20 @@ export default function Discovery() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y divide-slate-50">
-            {discoveryJobs.map((job) => (
+            {jobs.length === 0 && (
+              <div className="p-12 text-center">
+                <Globe className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                <p className="text-slate-500">No discovery jobs configured. Create one to start scanning.</p>
+              </div>
+            )}
+            {jobs.map((job) => (
               <div key={job.id} className="p-6 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                 <div className="flex items-center gap-4">
                   <div className={cn(
                     "p-3 rounded-xl",
                     job.status === "RUNNING" ? "bg-blue-50 text-blue-600 animate-pulse" : 
-                    job.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-400"
+                    job.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : 
+                    job.status === "STOPPED" ? "bg-red-50 text-red-600" : "bg-slate-50 text-slate-400"
                   )}>
                     <Globe className="w-6 h-6" />
                   </div>
@@ -117,6 +172,12 @@ export default function Discovery() {
                       <span className="text-xs font-bold uppercase tracking-wider">Scheduled</span>
                     </div>
                   )}
+                  {job.status === "STOPPED" && (
+                    <div className="flex items-center gap-2 text-red-500">
+                      <Square className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Stopped</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-8">
@@ -125,10 +186,37 @@ export default function Discovery() {
                     <p className="text-xs text-slate-400">Last run: {job.lastRun}</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="icon" className="rounded-lg border-slate-200">
-                      <Play className="w-4 h-4 text-slate-600" />
-                    </Button>
-                    <Button variant="outline" size="icon" className="rounded-lg border-slate-200">
+                    {job.status === "RUNNING" ? (
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        className="rounded-lg border-red-200 bg-red-50 hover:bg-red-100"
+                        onClick={() => {
+                          stopJob(job.id);
+                          toast.error(`Discovery job '${job.name}' stopped.`);
+                        }}
+                      >
+                        <Square className="w-4 h-4 text-red-600 fill-red-600" />
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        className="rounded-lg border-slate-200"
+                        onClick={() => {
+                          startJob(job.id);
+                          toast.success(`Discovery job '${job.name}' started.`);
+                        }}
+                      >
+                        <Play className="w-4 h-4 text-slate-600" />
+                      </Button>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="rounded-lg border-slate-200"
+                      onClick={() => openEditDialog(job)}
+                    >
                       <Settings className="w-4 h-4 text-slate-600" />
                     </Button>
                   </div>
@@ -138,6 +226,115 @@ export default function Discovery() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Job Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-2xl border-none shadow-2xl">
+          <DialogHeader>
+            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4">
+              <Plus className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-xl font-bold">New Discovery Job</DialogTitle>
+            <DialogDescription>
+              Configure a new network scan to find devices.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddJob} className="space-y-6 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Job Name</Label>
+              <Input 
+                id="name" 
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="e.g. Core Network Scan"
+                required 
+                className="rounded-xl bg-slate-50 border-none" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="range">IP Range (CIDR)</Label>
+              <Input 
+                id="range" 
+                value={formData.range}
+                onChange={(e) => setFormData(prev => ({ ...prev, range: e.target.value }))}
+                placeholder="e.g. 10.0.0.0/24"
+                required 
+                className="rounded-xl bg-slate-50 border-none" 
+              />
+            </div>
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} className="rounded-xl border-slate-200">
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl min-w-[120px]">
+                Create Job
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Job Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-2xl border-none shadow-2xl">
+          <DialogHeader>
+            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4">
+              <Settings className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-xl font-bold">Job Settings</DialogTitle>
+            <DialogDescription>
+              Modify or delete this discovery job.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditJob} className="space-y-6 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Job Name</Label>
+              <Input 
+                id="edit-name" 
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                required 
+                className="rounded-xl bg-slate-50 border-none" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-range">IP Range (CIDR)</Label>
+              <Input 
+                id="edit-range" 
+                value={formData.range}
+                onChange={(e) => setFormData(prev => ({ ...prev, range: e.target.value }))}
+                required 
+                className="rounded-xl bg-slate-50 border-none" 
+              />
+            </div>
+            <DialogFooter className="pt-4 flex justify-between items-center sm:justify-between">
+              <Button 
+                type="button" 
+                variant="ghost" 
+                className="text-red-600 hover:bg-red-50 hover:text-red-700 rounded-xl gap-2"
+                onClick={() => {
+                  if (editingJob) {
+                    deleteJob(editingJob.id);
+                    setIsEditDialogOpen(false);
+                    toast.success("Discovery job deleted.");
+                  }
+                }}
+              >
+                <TrashIcon className="w-4 h-4" />
+                Delete Job
+              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="rounded-xl border-slate-200">
+                  Cancel
+                </Button>
+                <Button type="submit" className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl min-w-[120px]">
+                  Save Changes
+                </Button>
+              </div>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -26,12 +26,16 @@ import { AddSubnetDialog } from "@/src/components/AddSubnetDialog";
 import { EditIPDialog } from "@/src/components/EditIPDialog";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from "recharts";
 
-const subnets = [
-  { id: "1", network: "10.0.0.0/24", name: "Core Infrastructure", used: 142, total: 254, site: "Data Center A", status: "HEALTHY" },
-  { id: "2", network: "192.168.1.0/24", name: "Office LAN", used: 210, total: 254, site: "Site B", status: "WARNING" },
-  { id: "3", network: "172.16.0.0/16", name: "DMZ & External", used: 45, total: 65534, site: "Data Center A", status: "HEALTHY" },
-  { id: "4", network: "10.1.0.0/24", name: "Voice/VoIP", used: 250, total: 254, site: "Data Center A", status: "CRITICAL" },
-];
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,
+  DialogFooter
+} from "@/src/components/ui/dialog";
+import { Label } from "@/src/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select";
 
 // Generate dummy IP data for a /24 subnet (first 254 addresses)
 const generateIPs = (network: string) => {
@@ -53,15 +57,53 @@ const generateIPs = (network: string) => {
   });
 };
 
+import { useIPAM, Subnet } from "@/src/lib/IPAMContext";
+import { useLocations } from "@/src/lib/LocationContext";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/src/components/ui/dropdown-menu";
+import { Edit, Trash2 as TrashIcon } from "lucide-react";
+
 export default function IPAM() {
-  const [selectedSubnet, setSelectedSubnet] = useState<typeof subnets[0] | null>(null);
+  const { subnets, deleteSubnet, updateSubnet } = useIPAM();
+  const { locations } = useLocations();
+  const [selectedSubnet, setSelectedSubnet] = useState<Subnet | null>(null);
   const [ips, setIps] = useState<any[]>([]);
   const [editingIP, setEditingIP] = useState<any | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingSubnet, setEditingSubnet] = useState<Subnet | null>(null);
+  const [isEditSubnetOpen, setIsEditSubnetOpen] = useState(false);
+  const [subnetFormData, setSubnetFormData] = useState({ network: "", name: "", site: "" });
 
-  const handleSubnetClick = (subnet: typeof subnets[0]) => {
+  const handleSubnetClick = (subnet: Subnet) => {
     setSelectedSubnet(subnet);
     setIps(generateIPs(subnet.network));
+  };
+
+  const handleOpenEditSubnet = (e: React.MouseEvent, subnet: Subnet) => {
+    e.stopPropagation();
+    setEditingSubnet(subnet);
+    setSubnetFormData({ network: subnet.network, name: subnet.name, site: subnet.site });
+    setIsEditSubnetOpen(true);
+  };
+
+  const handleSaveSubnet = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingSubnet) {
+      updateSubnet(editingSubnet.id, subnetFormData);
+      setIsEditSubnetOpen(false);
+      setEditingSubnet(null);
+      toast.success("Subnet updated successfully.");
+    }
+  };
+
+  const handleDeleteSubnet = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    deleteSubnet(id);
+    toast.success("Subnet deleted successfully.");
   };
 
   const handleIPClick = (ip: any) => {
@@ -289,8 +331,10 @@ export default function IPAM() {
             <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total IPs Managed</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">66,296</div>
-            <p className="text-xs text-slate-400 mt-1">Across 14 subnets</p>
+            <div className="text-2xl font-bold text-slate-900">
+              {subnets.reduce((acc, s) => acc + s.total, 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Across {subnets.length} subnets</p>
           </CardContent>
         </Card>
         <Card className="border-none shadow-sm rounded-2xl bg-white">
@@ -298,8 +342,10 @@ export default function IPAM() {
             <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Utilization</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600">78%</div>
-            <p className="text-xs text-slate-400 mt-1">2 subnets near capacity</p>
+            <div className="text-2xl font-bold text-amber-600">
+              {subnets.length > 0 ? Math.round((subnets.reduce((acc, s) => acc + s.used, 0) / subnets.reduce((acc, s) => acc + s.total, 0)) * 100) : 0}%
+            </div>
+            <p className="text-xs text-slate-400 mt-1">{subnets.filter(s => (s.used / s.total) > 0.9).length} subnets near capacity</p>
           </CardContent>
         </Card>
         <Card className="border-none shadow-sm rounded-2xl bg-white">
@@ -307,7 +353,7 @@ export default function IPAM() {
             <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Reserved IPs</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-brand-blue">1,240</div>
+            <div className="text-2xl font-bold text-brand-blue">0</div>
             <p className="text-xs text-slate-400 mt-1">Static assignments</p>
           </CardContent>
         </Card>
@@ -387,9 +433,32 @@ export default function IPAM() {
                         {subnet.status}
                       </Badge>
                     </div>
-                    <Button variant="ghost" size="icon" className="rounded-lg group-hover:bg-white border border-transparent group-hover:border-slate-200">
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="rounded-lg hover:bg-white border border-transparent hover:border-slate-200" onClick={(e) => e.stopPropagation()} />}>
+                          <MoreHorizontal className="w-4 h-4 text-slate-400" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl border-slate-200 w-40">
+                          <DropdownMenuItem 
+                            className="gap-2 focus:bg-slate-50 cursor-pointer"
+                            onClick={(e) => handleOpenEditSubnet(e, subnet)}
+                          >
+                            <Edit className="w-4 h-4 text-slate-400" />
+                            Edit Subnet
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="gap-2 focus:bg-red-50 text-red-600 cursor-pointer"
+                            onClick={(e) => handleDeleteSubnet(e, subnet.id)}
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <Button variant="ghost" size="icon" className="rounded-lg group-hover:bg-white border border-transparent group-hover:border-slate-200">
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               );
@@ -397,6 +466,67 @@ export default function IPAM() {
           </div>
         </CardContent>
       </Card>
+      <Dialog open={isEditSubnetOpen} onOpenChange={setIsEditSubnetOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-2xl border-none shadow-2xl">
+          <DialogHeader>
+            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4">
+              <Hash className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-xl font-bold">Edit Subnet</DialogTitle>
+            <DialogDescription>
+              Update the network range details.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveSubnet} className="space-y-6 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-network">Network Address (CIDR)</Label>
+              <Input 
+                id="edit-network" 
+                value={subnetFormData.network}
+                onChange={(e) => setSubnetFormData(prev => ({ ...prev, network: e.target.value }))}
+                required 
+                className="rounded-xl bg-slate-50 border-none" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Subnet Name</Label>
+              <Input 
+                id="edit-name" 
+                value={subnetFormData.name}
+                onChange={(e) => setSubnetFormData(prev => ({ ...prev, name: e.target.value }))}
+                required 
+                className="rounded-xl bg-slate-50 border-none" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-site">Site / Location</Label>
+              <Select 
+                value={subnetFormData.site}
+                onValueChange={(val) => setSubnetFormData(prev => ({ ...prev, site: val }))}
+              >
+                <SelectTrigger className="rounded-xl bg-slate-50 border-none">
+                  <SelectValue placeholder="Select site" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations.map((loc) => (
+                    <SelectItem key={loc.id} value={loc.name}>
+                      {loc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={() => setIsEditSubnetOpen(false)} className="rounded-xl border-slate-200">
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl min-w-[120px]">
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

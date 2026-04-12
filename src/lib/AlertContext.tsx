@@ -18,14 +18,7 @@ interface AlertContextType {
 
 const AlertContext = createContext<AlertContextType | undefined>(undefined);
 
-const INITIAL_ALERTS: Alert[] = [
-  { id: "1", device: "web-srv-01", msg: "High CPU usage detected (92%)", time: "2m ago", severity: "critical", status: "active" },
-  { id: "2", device: "edge-router-01", msg: "Interface Gi0/1 status changed to DOWN", time: "15m ago", severity: "critical", status: "active" },
-  { id: "3", device: "db-srv-01", msg: "Low disk space on /var/lib/mysql (5% remaining)", time: "1h ago", severity: "warning", status: "active" },
-  { id: "4", device: "core-switch-02", msg: "Fan failure detected in slot 1", time: "3h ago", severity: "warning", status: "active" },
-  { id: "5", device: "backup-nas", msg: "Scheduled backup failed: Connection timeout", time: "5h ago", severity: "warning", status: "acknowledged" },
-  { id: "6", device: "ups-dc-01", msg: "Battery self-test passed", time: "1d ago", severity: "info", status: "resolved" },
-];
+const INITIAL_ALERTS: Alert[] = [];
 
 export function AlertProvider({ children }: { children: React.ReactNode }) {
   const [alerts, setAlerts] = useState<Alert[]>(() => {

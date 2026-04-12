@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Hash, Globe, Database } from "lucide-react";
 import { toast } from "sonner";
 import { useLocations } from "@/src/lib/LocationContext";
+import { useIPAM } from "@/src/lib/IPAMContext";
 
 interface AddSubnetDialogProps {
   children?: React.ReactElement;
@@ -22,8 +23,15 @@ interface AddSubnetDialogProps {
 
 export function AddSubnetDialog({ children }: AddSubnetDialogProps) {
   const { locations } = useLocations();
+  const { addSubnet } = useIPAM();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const [formData, setFormData] = useState({
+    network: "",
+    name: "",
+    site: locations[0]?.name || "Default",
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,10 +39,21 @@ export function AddSubnetDialog({ children }: AddSubnetDialogProps) {
     
     // Simulate API call
     setTimeout(() => {
+      addSubnet({
+        network: formData.network,
+        name: formData.name,
+        site: formData.site,
+        total: 254, // Default for /24
+      });
       setLoading(false);
       setOpen(false);
       toast.success("Subnet added successfully to IPAM.");
-    }, 1500);
+      setFormData({
+        network: "",
+        name: "",
+        site: locations[0]?.name || "Default",
+      });
+    }, 1000);
   };
 
   return (
@@ -58,24 +77,41 @@ export function AddSubnetDialog({ children }: AddSubnetDialogProps) {
         <form onSubmit={handleSubmit} className="space-y-6 py-4">
           <div className="space-y-2">
             <Label htmlFor="network">Network Address (CIDR)</Label>
-            <Input id="network" placeholder="e.g. 10.0.0.0/24" required className="rounded-xl bg-slate-50 border-none" />
+            <Input 
+              id="network" 
+              placeholder="e.g. 10.0.0.0/24" 
+              required 
+              className="rounded-xl bg-slate-50 border-none"
+              value={formData.network}
+              onChange={(e) => setFormData(prev => ({ ...prev, network: e.target.value }))}
+            />
           </div>
           
           <div className="space-y-2">
             <Label htmlFor="name">Subnet Name / Description</Label>
-            <Input id="name" placeholder="e.g. Core Infrastructure" required className="rounded-xl bg-slate-50 border-none" />
+            <Input 
+              id="name" 
+              placeholder="e.g. Core Infrastructure" 
+              required 
+              className="rounded-xl bg-slate-50 border-none"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="site">Site / Location</Label>
-              <Select defaultValue={locations[0]?.id}>
+              <Select 
+                value={formData.site}
+                onValueChange={(val) => setFormData(prev => ({ ...prev, site: val }))}
+              >
                 <SelectTrigger className="rounded-xl bg-slate-50 border-none">
                   <SelectValue placeholder="Select site" />
                 </SelectTrigger>
                 <SelectContent>
                   {locations.map((loc) => (
-                    <SelectItem key={loc.id} value={loc.id}>
+                    <SelectItem key={loc.id} value={loc.name}>
                       {loc.name}
                     </SelectItem>
                   ))}
