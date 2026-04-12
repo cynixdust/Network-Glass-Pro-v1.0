@@ -1,6 +1,5 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const isDev = require('electron-is-dev');
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -15,6 +14,7 @@ function createWindow() {
 
   // In production, load the index.html file from the dist folder
   // In development, load from the dev server
+  const isDev = !app.isPackaged;
   const startUrl = isDev 
     ? 'http://localhost:3000' 
     : `file://${path.join(__dirname, '../dist/index.html')}`;
