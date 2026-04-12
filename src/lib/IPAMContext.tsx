@@ -45,11 +45,11 @@ export function IPAMProvider({ children }: { children: React.ReactNode }) {
         prev.map((s) => {
           if (s.id !== id) return s;
           
-          // Generate random but realistic stats
+          // Generate realistic sparse stats (user mentioned having ~6 devices)
           const total = s.total;
-          const used = Math.floor(total * (0.3 + Math.random() * 0.5));
-          const offline = Math.floor(total * (Math.random() * 0.1));
-          const reserved = Math.floor(total * 0.05);
+          const used = Math.min(total, Math.floor(Math.random() * 5) + 3); // 3-8 devices
+          const offline = Math.floor(Math.random() * 2); // 0-1 offline
+          const reserved = 2; // Default reserved (gateway, etc)
           const free = total - used - offline - reserved;
           
           const utilization = used / total;

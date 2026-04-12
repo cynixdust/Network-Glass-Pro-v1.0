@@ -60,15 +60,15 @@ export default function DeviceDetail() {
     );
   }
 
-  // Mock extended data for the found device
+  // Use actual data from the found device with fallbacks
   const device = {
     ...foundDevice,
-    os: "Ubuntu 22.04 LTS",
-    uptime: "14d 6h 22m",
-    mac: "00:1A:2B:3C:4D:5E",
-    cpu: "8 Core Intel Xeon",
-    ram: "32GB DDR4",
-    disk: "500GB SSD (82% used)",
+    os: foundDevice.os || "Unknown OS",
+    uptime: foundDevice.uptime || "N/A",
+    mac: foundDevice.mac || "Unknown MAC",
+    cpu: foundDevice.cpu || "Unknown CPU",
+    ram: foundDevice.ram || "Unknown RAM",
+    disk: foundDevice.disk || "Unknown Disk",
   };
 
   return (

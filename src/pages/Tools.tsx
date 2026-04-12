@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { Badge } from "@/src/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Progress } from "@/src/components/ui/progress";
 import { cn } from "@/src/lib/utils";
@@ -33,6 +34,10 @@ export default function Tools() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanResults, setScanResults] = useState<{ port: number; service: string; status: string }[]>([]);
+
+  const [dnsTarget, setDnsTarget] = useState("google.com");
+  const [isResolving, setIsResolving] = useState(false);
+  const [dnsResults, setDnsResults] = useState<{ type: string; value: string; ttl: number }[]>([]);
 
   const runPing = () => {
     if (!pingTarget) return;
@@ -89,6 +94,24 @@ export default function Tools() {
         toast.success(`Port scan for ${scanTarget} completed`);
       }
     }, 600);
+  };
+
+  const runDnsLookup = () => {
+    if (!dnsTarget) return;
+    setIsResolving(true);
+    setDnsResults([]);
+    
+    setTimeout(() => {
+      const mockRecords = [
+        { type: "A", value: "142.250.190.46", ttl: 300 },
+        { type: "AAAA", value: "2607:f8b0:4005:805::200e", ttl: 300 },
+        { type: "MX", value: "aspmx.l.google.com (10)", ttl: 3600 },
+        { type: "TXT", value: "v=spf1 include:_spf.google.com ~all", ttl: 3600 }
+      ];
+      setDnsResults(mockRecords);
+      setIsResolving(false);
+      toast.success(`DNS lookup for ${dnsTarget} completed`);
+    }, 1500);
   };
 
   return (
@@ -247,6 +270,54 @@ export default function Tools() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="dns" className="space-y-6">
+              <Card className="border-none shadow-sm rounded-2xl">
+                <CardHeader>
+                  <CardTitle>DNS Lookup</CardTitle>
+                  <CardDescription>Resolve hostnames to IP addresses or check MX/TXT records.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex gap-4">
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="dns-target">Domain or Hostname</Label>
+                      <Input 
+                        id="dns-target" 
+                        value={dnsTarget} 
+                        onChange={(e) => setDnsTarget(e.target.value)}
+                        placeholder="e.g. google.com" 
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button 
+                        onClick={runDnsLookup} 
+                        disabled={isResolving}
+                        className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl gap-2 h-10 px-6"
+                      >
+                        {isResolving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+                        Resolve
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
+                    {dnsResults.length === 0 && !isResolving && (
+                      <p className="text-slate-400 text-center italic py-8">Enter a domain to see DNS records...</p>
+                    )}
+                    {dnsResults.map((record, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-100 rounded-lg">{record.type}</Badge>
+                          <span className="font-mono text-sm text-slate-900">{record.value}</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">TTL: {record.ttl}</span>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>

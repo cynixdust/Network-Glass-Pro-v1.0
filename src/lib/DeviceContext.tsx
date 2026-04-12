@@ -4,10 +4,19 @@ export interface Device {
   id: string;
   hostname: string;
   ip: string;
+  mac?: string;
   type: string;
+  os?: string;
+  vendor?: string;
+  model?: string;
+  serialNumber?: string;
   status: "UP" | "WARNING" | "DOWN";
   location: string;
   lastSeen: string;
+  uptime?: string;
+  cpu?: string;
+  ram?: string;
+  disk?: string;
 }
 
 interface DeviceContextType {

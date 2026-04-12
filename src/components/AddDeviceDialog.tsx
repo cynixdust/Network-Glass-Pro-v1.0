@@ -30,7 +30,9 @@ export function AddDeviceDialog({ children }: AddDeviceDialogProps) {
   const [formData, setFormData] = useState({
     hostname: "",
     ip: "",
+    mac: "",
     type: "SWITCH",
+    os: "",
     location: locations[0]?.name || "Default",
   });
 
@@ -43,17 +45,21 @@ export function AddDeviceDialog({ children }: AddDeviceDialogProps) {
       addDevice({
         hostname: formData.hostname,
         ip: formData.ip,
+        mac: formData.mac,
         type: formData.type,
+        os: formData.os,
         location: formData.location,
         status: "UP",
       });
       setLoading(false);
       setOpen(false);
-      toast.success("Device added successfully and scheduled for initial polling.");
+      toast.success("Device added successfully.");
       setFormData({
         hostname: "",
         ip: "",
+        mac: "",
         type: "SWITCH",
+        os: "",
         location: locations[0]?.name || "Default",
       });
     }, 1000);
@@ -99,6 +105,29 @@ export function AddDeviceDialog({ children }: AddDeviceDialogProps) {
                 className="rounded-xl bg-slate-50 border-none"
                 value={formData.ip}
                 onChange={(e) => setFormData(prev => ({ ...prev, ip: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="mac">MAC Address (Optional)</Label>
+              <Input 
+                id="mac" 
+                placeholder="e.g. 00:1A:2B:3C:4D:5E" 
+                className="rounded-xl bg-slate-50 border-none"
+                value={formData.mac}
+                onChange={(e) => setFormData(prev => ({ ...prev, mac: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="os">Operating System</Label>
+              <Input 
+                id="os" 
+                placeholder="e.g. Windows Server 2022" 
+                className="rounded-xl bg-slate-50 border-none"
+                value={formData.os}
+                onChange={(e) => setFormData(prev => ({ ...prev, os: e.target.value }))}
               />
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Database, 
   Plus, 
@@ -38,42 +38,12 @@ import {
 import { Label } from "@/src/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select";
 
-// Generate dummy IP data for a subnet based on its stats
-const generateIPs = (subnet: Subnet) => {
-  const base = subnet.network.split('.').slice(0, 3).join('.');
-  const total = Math.min(subnet.total, 254); // Limit for visualization
-  
-  // Create a pool based on the subnet stats
-  let pool: string[] = [];
-  const usedCount = Math.floor((subnet.used / subnet.total) * total);
-  const offlineCount = Math.floor((subnet.offline / subnet.total) * total);
-  const reservedCount = Math.floor((subnet.reserved / subnet.total) * total);
-  
-  for (let i = 0; i < usedCount; i++) pool.push("USED");
-  for (let i = 0; i < offlineCount; i++) pool.push("OFFLINE");
-  for (let i = 0; i < reservedCount; i++) pool.push("RESERVED");
-  while (pool.length < total) pool.push("FREE");
-  
-  // Shuffle the pool to make it look realistic
-  pool = pool.sort(() => Math.random() - 0.5);
+// IP generation logic moved below with DeviceContext integration
 
-  return Array.from({ length: total }, (_, i) => {
-    const lastOctet = i + 1;
-    const status = pool[i] || "FREE";
-    return {
-      address: `${base}.${lastOctet}`,
-      status,
-      hostname: status === "USED" ? `device-${lastOctet}.netpulse.io` : null,
-      owner: status === "USED" ? "IT Infrastructure" : null,
-      description: status === "USED" ? "Production server node" : null,
-      location: subnet.site,
-      notes: status === "USED" ? "Monitored via SNMP v3" : ""
-    };
-  });
-};
 
 import { useIPAM, Subnet } from "@/src/lib/IPAMContext";
 import { useLocations } from "@/src/lib/LocationContext";
+import { useDevices, Device } from "@/src/lib/DeviceContext";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -82,9 +52,55 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Edit, Trash2 as TrashIcon } from "lucide-react";
 
+const generateIPs = (subnet: Subnet, monitoredDevices: Device[]) => {
+  const base = subnet.network.split("/")[0].split(".").slice(0, 3).join(".");
+  const total = subnet.total;
+  
+  // Create a map of monitored devices by IP for quick lookup
+  const deviceMap = new Map(monitoredDevices.map(d => [d.ip, d]));
+
+  return Array.from({ length: Math.min(total, 254) }, (_, i) => {
+    const address = `${base}.${i + 1}`;
+    const device = deviceMap.get(address);
+    
+    let status: "USED" | "FREE" | "OFFLINE" | "RESERVED" = "FREE";
+    let hostname = "";
+    let owner = "";
+    let notes = "";
+
+    if (device) {
+      status = device.status === "UP" ? "USED" : "OFFLINE";
+      hostname = device.hostname;
+      owner = "IT Department";
+      notes = `Monitored: ${device.type} (${device.os || "Unknown OS"})`;
+    } else if (i === 0) {
+      status = "RESERVED";
+      hostname = "Gateway";
+      notes = "Default Gateway";
+    } else if (i === 253) {
+      status = "RESERVED";
+      hostname = "Broadcast";
+    } else if (i < 5 && Math.random() > 0.5) {
+      // Simulate some other used IPs that aren't in our monitored list
+      status = "USED";
+      hostname = `device-${i + 1}.local`;
+      owner = "Unknown";
+    }
+
+    return {
+      address,
+      status,
+      hostname,
+      owner,
+      notes
+    };
+  });
+};
+
 export default function IPAM() {
   const { subnets, deleteSubnet, updateSubnet, scanSubnet } = useIPAM();
   const { locations } = useLocations();
+  const { devices } = useDevices();
   const [selectedSubnet, setSelectedSubnet] = useState<Subnet | null>(null);
   const [ips, setIps] = useState<any[]>([]);
   const [editingIP, setEditingIP] = useState<any | null>(null);
@@ -92,6 +108,13 @@ export default function IPAM() {
   const [editingSubnet, setEditingSubnet] = useState<Subnet | null>(null);
   const [isEditSubnetOpen, setIsEditSubnetOpen] = useState(false);
   const [subnetFormData, setSubnetFormData] = useState({ network: "", name: "", site: "" });
+  
+  // Update IPs when selected subnet or devices change
+  useEffect(() => {
+    if (selectedSubnet) {
+      setIps(generateIPs(selectedSubnet, devices));
+    }
+  }, [selectedSubnet, devices]);
 
   const handleSubnetClick = (subnet: Subnet) => {
     if (subnet.status === "SCANNING") {
@@ -99,7 +122,6 @@ export default function IPAM() {
       return;
     }
     setSelectedSubnet(subnet);
-    setIps(generateIPs(subnet));
   };
 
   const handleScanSubnet = (e: React.MouseEvent, id: string) => {
