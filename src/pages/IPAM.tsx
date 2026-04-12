@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ArrowLeft,
   Info,
+  RefreshCw,
   PieChart as PieChartIcon
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src/components/ui/card";
@@ -37,21 +38,35 @@ import {
 import { Label } from "@/src/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select";
 
-// Generate dummy IP data for a /24 subnet (first 254 addresses)
-const generateIPs = (network: string) => {
-  const base = network.split('.').slice(0, 3).join('.');
-  return Array.from({ length: 254 }, (_, i) => {
+// Generate dummy IP data for a subnet based on its stats
+const generateIPs = (subnet: Subnet) => {
+  const base = subnet.network.split('.').slice(0, 3).join('.');
+  const total = Math.min(subnet.total, 254); // Limit for visualization
+  
+  // Create a pool based on the subnet stats
+  let pool: string[] = [];
+  const usedCount = Math.floor((subnet.used / subnet.total) * total);
+  const offlineCount = Math.floor((subnet.offline / subnet.total) * total);
+  const reservedCount = Math.floor((subnet.reserved / subnet.total) * total);
+  
+  for (let i = 0; i < usedCount; i++) pool.push("USED");
+  for (let i = 0; i < offlineCount; i++) pool.push("OFFLINE");
+  for (let i = 0; i < reservedCount; i++) pool.push("RESERVED");
+  while (pool.length < total) pool.push("FREE");
+  
+  // Shuffle the pool to make it look realistic
+  pool = pool.sort(() => Math.random() - 0.5);
+
+  return Array.from({ length: total }, (_, i) => {
     const lastOctet = i + 1;
-    const status = Math.random() > 0.7 ? "FREE" : 
-                  Math.random() > 0.8 ? "OFFLINE" : 
-                  Math.random() > 0.9 ? "RESERVED" : "USED";
+    const status = pool[i] || "FREE";
     return {
       address: `${base}.${lastOctet}`,
       status,
       hostname: status === "USED" ? `device-${lastOctet}.netpulse.io` : null,
       owner: status === "USED" ? "IT Infrastructure" : null,
       description: status === "USED" ? "Production server node" : null,
-      location: "Data Center A",
+      location: subnet.site,
       notes: status === "USED" ? "Monitored via SNMP v3" : ""
     };
   });
@@ -68,7 +83,7 @@ import {
 import { Edit, Trash2 as TrashIcon } from "lucide-react";
 
 export default function IPAM() {
-  const { subnets, deleteSubnet, updateSubnet } = useIPAM();
+  const { subnets, deleteSubnet, updateSubnet, scanSubnet } = useIPAM();
   const { locations } = useLocations();
   const [selectedSubnet, setSelectedSubnet] = useState<Subnet | null>(null);
   const [ips, setIps] = useState<any[]>([]);
@@ -79,8 +94,18 @@ export default function IPAM() {
   const [subnetFormData, setSubnetFormData] = useState({ network: "", name: "", site: "" });
 
   const handleSubnetClick = (subnet: Subnet) => {
+    if (subnet.status === "SCANNING") {
+      toast.info("Subnet is currently being scanned. Please wait.");
+      return;
+    }
     setSelectedSubnet(subnet);
-    setIps(generateIPs(subnet.network));
+    setIps(generateIPs(subnet));
+  };
+
+  const handleScanSubnet = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    scanSubnet(id);
+    toast.info("Scanning subnet...");
   };
 
   const handleOpenEditSubnet = (e: React.MouseEvent, subnet: Subnet) => {
@@ -144,12 +169,12 @@ export default function IPAM() {
     toast.success("Export completed successfully");
   };
 
-  const chartData = [
-    { name: "Used", value: ips.filter(ip => ip.status === "USED").length, color: "#2563EB" },
-    { name: "Free", value: ips.filter(ip => ip.status === "FREE").length, color: "#e2e8f0" },
-    { name: "Offline", value: ips.filter(ip => ip.status === "OFFLINE").length, color: "#ef4444" },
-    { name: "Reserved", value: ips.filter(ip => ip.status === "RESERVED").length, color: "#f59e0b" },
-  ];
+  const chartData = selectedSubnet ? [
+    { name: "Used", value: selectedSubnet.used, color: "#2563EB" },
+    { name: "Free", value: selectedSubnet.free, color: "#e2e8f0" },
+    { name: "Offline", value: selectedSubnet.offline, color: "#ef4444" },
+    { name: "Reserved", value: selectedSubnet.reserved, color: "#f59e0b" },
+  ] : [];
 
   if (selectedSubnet) {
     return (
@@ -170,6 +195,11 @@ export default function IPAM() {
                 <Badge variant="outline" className="rounded-lg bg-slate-50 text-slate-500 border-slate-200">
                   {selectedSubnet.site}
                 </Badge>
+                {selectedSubnet.lastScanned && (
+                  <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
+                    Last Scanned: {selectedSubnet.lastScanned}
+                  </span>
+                )}
               </div>
               <p className="text-slate-500 mt-1">{selectedSubnet.name}</p>
             </div>
@@ -390,10 +420,11 @@ export default function IPAM() {
                   <div className="flex items-center gap-4 w-1/4">
                     <div className={cn(
                       "p-3 rounded-xl",
+                      subnet.status === "SCANNING" ? "bg-blue-50 text-blue-600 animate-spin" :
                       subnet.status === "HEALTHY" ? "bg-emerald-50 text-emerald-600" : 
                       subnet.status === "WARNING" ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"
                     )}>
-                      <Hash className="w-6 h-6" />
+                      {subnet.status === "SCANNING" ? <RefreshCw className="w-6 h-6" /> : <Hash className="w-6 h-6" />}
                     </div>
                     <div>
                       <h4 className="font-bold text-slate-900">{subnet.network}</h4>
@@ -427,6 +458,7 @@ export default function IPAM() {
                       <p className="text-sm font-bold text-slate-900">{subnet.site}</p>
                       <Badge variant="outline" className={cn(
                         "rounded-lg text-[10px] uppercase font-bold tracking-wider mt-1",
+                        subnet.status === "SCANNING" ? "border-blue-200 text-blue-600 bg-blue-50" :
                         subnet.status === "HEALTHY" ? "border-emerald-200 text-emerald-600 bg-emerald-50" : 
                         subnet.status === "WARNING" ? "border-amber-200 text-amber-600 bg-amber-50" : "border-red-200 text-red-600 bg-red-50"
                       )}>
@@ -439,6 +471,13 @@ export default function IPAM() {
                           <MoreHorizontal className="w-4 h-4 text-slate-400" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl border-slate-200 w-40">
+                          <DropdownMenuItem 
+                            className="gap-2 focus:bg-blue-50 cursor-pointer"
+                            onClick={(e) => handleScanSubnet(e, subnet.id)}
+                          >
+                            <RefreshCw className="w-4 h-4 text-slate-400" />
+                            Scan Subnet
+                          </DropdownMenuItem>
                           <DropdownMenuItem 
                             className="gap-2 focus:bg-slate-50 cursor-pointer"
                             onClick={(e) => handleOpenEditSubnet(e, subnet)}

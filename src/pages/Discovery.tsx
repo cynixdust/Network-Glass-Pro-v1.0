@@ -16,6 +16,7 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/lib/utils";
+import { toast } from "sonner";
 
 import { useDiscovery, DiscoveryJob } from "@/src/lib/DiscoveryContext";
 import { 

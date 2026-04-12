@@ -33,6 +33,18 @@ export function AddSubnetDialog({ children }: AddSubnetDialogProps) {
     site: locations[0]?.name || "Default",
   });
 
+  const calculateTotalIPs = (cidr: string) => {
+    try {
+      const parts = cidr.split('/');
+      if (parts.length !== 2) return 254;
+      const mask = parseInt(parts[1]);
+      if (mask >= 32) return 1;
+      return Math.pow(2, 32 - mask) - 2;
+    } catch {
+      return 254;
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -43,11 +55,11 @@ export function AddSubnetDialog({ children }: AddSubnetDialogProps) {
         network: formData.network,
         name: formData.name,
         site: formData.site,
-        total: 254, // Default for /24
+        total: calculateTotalIPs(formData.network),
       });
       setLoading(false);
       setOpen(false);
-      toast.success("Subnet added successfully to IPAM.");
+      toast.success("Subnet added. Automatic scan initiated.");
       setFormData({
         network: "",
         name: "",

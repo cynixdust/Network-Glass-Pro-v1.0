@@ -5,16 +5,21 @@ export interface Subnet {
   network: string;
   name: string;
   used: number;
+  free: number;
+  offline: number;
+  reserved: number;
   total: number;
   site: string;
-  status: "HEALTHY" | "WARNING" | "CRITICAL";
+  status: "HEALTHY" | "WARNING" | "CRITICAL" | "SCANNING";
+  lastScanned?: string;
 }
 
 interface IPAMContextType {
   subnets: Subnet[];
-  addSubnet: (subnet: Omit<Subnet, "id" | "used" | "status">) => void;
+  addSubnet: (subnet: Omit<Subnet, "id" | "used" | "free" | "offline" | "reserved" | "status" | "lastScanned">) => void;
   updateSubnet: (id: string, subnet: Partial<Subnet>) => void;
   deleteSubnet: (id: string) => void;
+  scanSubnet: (id: string) => void;
 }
 
 const IPAMContext = createContext<IPAMContextType | undefined>(undefined);
@@ -29,14 +34,56 @@ export function IPAMProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("app_subnets", JSON.stringify(subnets));
   }, [subnets]);
 
-  const addSubnet = (subnet: Omit<Subnet, "id" | "used" | "status">) => {
+  const scanSubnet = (id: string) => {
+    setSubnets((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, status: "SCANNING" } : s))
+    );
+
+    // Simulate network scan
+    setTimeout(() => {
+      setSubnets((prev) =>
+        prev.map((s) => {
+          if (s.id !== id) return s;
+          
+          // Generate random but realistic stats
+          const total = s.total;
+          const used = Math.floor(total * (0.3 + Math.random() * 0.5));
+          const offline = Math.floor(total * (Math.random() * 0.1));
+          const reserved = Math.floor(total * 0.05);
+          const free = total - used - offline - reserved;
+          
+          const utilization = used / total;
+          const status = utilization > 0.9 ? "CRITICAL" : utilization > 0.7 ? "WARNING" : "HEALTHY";
+
+          return {
+            ...s,
+            used,
+            free,
+            offline,
+            reserved,
+            status,
+            lastScanned: new Date().toLocaleString(),
+          };
+        })
+      );
+    }, 3000);
+  };
+
+  const addSubnet = (subnet: Omit<Subnet, "id" | "used" | "free" | "offline" | "reserved" | "status" | "lastScanned">) => {
+    const id = Math.random().toString(36).substr(2, 9);
     const newSubnet: Subnet = {
       ...subnet,
-      id: Math.random().toString(36).substr(2, 9),
+      id,
       used: 0,
-      status: "HEALTHY",
+      free: 0,
+      offline: 0,
+      reserved: 0,
+      status: "SCANNING",
     };
     setSubnets((prev) => [...prev, newSubnet]);
+    
+    // Automatically trigger scan
+    scanSubnet(id);
   };
 
   const updateSubnet = (id: string, updatedFields: Partial<Subnet>) => {
@@ -50,7 +97,7 @@ export function IPAMProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <IPAMContext.Provider value={{ subnets, addSubnet, updateSubnet, deleteSubnet }}>
+    <IPAMContext.Provider value={{ subnets, addSubnet, updateSubnet, deleteSubnet, scanSubnet }}>
       {children}
     </IPAMContext.Provider>
   );
