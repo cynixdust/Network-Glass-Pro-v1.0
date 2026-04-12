@@ -17,7 +17,7 @@
   },
   "build": {
     "appId": "com.networkglass.pro",
-    "productName": "Network Glass Pro",
+    "productName": "NetworkGlassPro",
     "directories": {
       "output": "dist_electron"
     },
@@ -29,8 +29,7 @@
     "win": {
       "executableName": "NetworkGlassPro",
       "target": [
-        "nsis",
-        "msi"
+        "nsis"
       ]
     },
     "nsis": {
