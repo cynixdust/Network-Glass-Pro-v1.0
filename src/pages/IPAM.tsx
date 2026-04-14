@@ -457,19 +457,29 @@ export default function IPAM() {
                   <div className="flex-1 max-w-xs mx-8">
                     <div className="space-y-2">
                       <div className="flex justify-between text-xs font-medium">
-                        <span className="text-slate-500">{subnet.used} / {subnet.total} IPs</span>
-                        <span className={cn(
-                          "font-bold",
-                          percent > 90 ? "text-red-600" : percent > 70 ? "text-amber-600" : "text-emerald-600"
-                        )}>{percent}%</span>
+                        {subnet.status === "SCANNING" ? (
+                          <>
+                            <span className="text-blue-600 animate-pulse">Scanning Network...</span>
+                            <span className="text-blue-600 font-bold">{subnet.scanProgress || 0}%</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-slate-500">{subnet.used} / {subnet.total} IPs</span>
+                            <span className={cn(
+                              "font-bold",
+                              percent > 90 ? "text-red-600" : percent > 70 ? "text-amber-600" : "text-emerald-600"
+                            )}>{percent}%</span>
+                          </>
+                        )}
                       </div>
                       <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                         <div 
                           className={cn(
                             "h-full transition-all duration-500",
+                            subnet.status === "SCANNING" ? "bg-blue-500" :
                             percent > 90 ? "bg-red-500" : percent > 70 ? "bg-amber-500" : "bg-emerald-500"
                           )} 
-                          style={{ width: `${percent}%` }}
+                          style={{ width: `${subnet.status === "SCANNING" ? (subnet.scanProgress || 0) : percent}%` }}
                         />
                       </div>
                     </div>

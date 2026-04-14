@@ -1,6 +1,6 @@
-import React, { useRef, useMemo } from "react";
+import React, { useRef, useMemo, Suspense } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, PerspectiveCamera, Environment, ContactShadows, Text } from "@react-three/drei";
+import { OrbitControls, PerspectiveCamera, Environment, ContactShadows, Text, Preload } from "@react-three/drei";
 import * as THREE from "three";
 
 interface Device {
@@ -52,20 +52,24 @@ function RackFrame({ totalU = 42 }: { totalU?: number }) {
         <meshStandardMaterial color="#0a0a0a" />
       </mesh>
 
-      {/* U Markings (simplified) */}
-      {Array.from({ length: totalU }).map((_, i) => (
-        <group key={i} position={[width / 2 + 0.05, i * 0.1 + 0.05, depth / 2]}>
-          <Text
-            fontSize={0.03}
-            color="#444"
-            anchorX="left"
-            anchorY="middle"
-            rotation={[0, 0, 0]}
-          >
-            {i + 1}
-          </Text>
-        </group>
-      ))}
+      {/* U Markings (optimized: show every 5th or first/last) */}
+      {Array.from({ length: totalU }).map((_, i) => {
+        const isMajor = (i + 1) % 5 === 0 || i === 0 || i === totalU - 1;
+        if (!isMajor) return null;
+        
+        return (
+          <group key={i} position={[width / 2 + 0.05, i * 0.1 + 0.05, depth / 2]}>
+            <Text
+              fontSize={0.04}
+              color="#666"
+              anchorX="left"
+              anchorY="middle"
+            >
+              {i + 1}
+            </Text>
+          </group>
+        );
+      })}
     </group>
   );
 }
@@ -140,14 +144,19 @@ export function Rack3D({ totalU = 42, devices }: RackProps) {
         <pointLight position={[-10, -10, -10]} intensity={0.5} />
         
         <group position={[0, -totalU * 0.05, 0]}>
-          <RackFrame totalU={totalU} />
-          {devices.map((device) => (
-            <RackDevice key={device.id} device={device} />
-          ))}
+          <Suspense fallback={null}>
+            <RackFrame totalU={totalU} />
+            {devices.map((device) => (
+              <RackDevice key={device.id} device={device} />
+            ))}
+          </Suspense>
         </group>
 
-        <ContactShadows position={[0, -totalU * 0.05, 0]} opacity={0.4} scale={10} blur={2.5} far={4} />
-        <Environment preset="city" />
+        <Suspense fallback={null}>
+          <ContactShadows position={[0, -totalU * 0.05, 0]} opacity={0.4} scale={10} blur={2.5} far={4} />
+          <Environment preset="city" />
+        </Suspense>
+        <Preload all />
       </Canvas>
     </div>
   );

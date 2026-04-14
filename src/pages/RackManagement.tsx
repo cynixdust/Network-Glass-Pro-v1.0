@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { 
   Box, 
   Plus, 
@@ -12,8 +12,10 @@ import {
   Settings2,
   Info,
   ChevronRight,
-  ArrowRight
+  ArrowRight,
+  PieChart as PieChartIcon
 } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -28,63 +30,51 @@ import {
 } from "@/src/components/ui/dialog";
 import { Label } from "@/src/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select";
-import { Rack3D } from "@/src/components/Rack3D";
 import { toast } from "sonner";
 import { cn } from "@/src/lib/utils";
 import { useLocations } from "@/src/lib/LocationContext";
+import { useRack, Rack, Device } from "@/src/lib/RackContext";
 
-interface Device {
-  id: string;
-  name: string;
-  uPos: number;
-  uSize: number;
-  type: "SWITCH" | "SERVER" | "ROUTER" | "FIREWALL";
-  color?: string;
-}
-
-interface Rack {
-  id: string;
-  name: string;
-  location: string;
-  totalU: number;
-  devices: Device[];
-}
-
-const initialRacks: Rack[] = [
-  {
-    id: "rack-1",
-    name: "RACK-01-PROD",
-    location: "Data Center A - Row 4",
-    totalU: 42,
-    devices: [
-      { id: "d1", name: "Core Switch 01", uPos: 40, uSize: 2, type: "SWITCH", color: "#3b82f6" },
-      { id: "d2", name: "Edge Router 01", uPos: 38, uSize: 1, type: "ROUTER", color: "#f59e0b" },
-      { id: "d3", name: "Web Server 01", uPos: 10, uSize: 2, type: "SERVER", color: "#10b981" },
-      { id: "d4", name: "DB Server 01", uPos: 12, uSize: 4, type: "SERVER", color: "#10b981" },
-      { id: "d5", name: "Firewall HQ", uPos: 36, uSize: 1, type: "FIREWALL", color: "#ef4444" },
-    ]
-  },
-  {
-    id: "rack-2",
-    name: "RACK-02-STORAGE",
-    location: "Data Center A - Row 5",
-    totalU: 42,
-    devices: [
-      { id: "d6", name: "Storage Array 01", uPos: 1, uSize: 4, type: "SERVER", color: "#6366f1" },
-      { id: "d7", name: "Backup NAS", uPos: 5, uSize: 2, type: "SERVER", color: "#6366f1" },
-      { id: "d8", name: "SAN Switch", uPos: 42, uSize: 1, type: "SWITCH", color: "#3b82f6" },
-    ]
-  }
-];
+// Lazy load Rack3D for better performance
+const Rack3D = React.lazy(() => import("@/src/components/Rack3D").then(module => ({ default: module.Rack3D })));
 
 export default function RackManagement() {
   const { locations } = useLocations();
-  const [racks, setRacks] = useState<Rack[]>(initialRacks);
-  const [selectedRackId, setSelectedRackId] = useState<string>(initialRacks[0].id);
+  const { racks, addRack, addDeviceToRack, removeDeviceFromRack } = useRack();
+  const [selectedRackId, setSelectedRackId] = useState<string>(racks[0]?.id || "");
   const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false);
   const [isAddRackOpen, setIsAddRackOpen] = useState(false);
   
   const selectedRack = racks.find(r => r.id === selectedRackId) || racks[0];
+
+  useEffect(() => {
+    if (!selectedRackId && racks.length > 0) {
+      setSelectedRackId(racks[0].id);
+    }
+  }, [racks, selectedRackId]);
+
+  // Calculate chart data for device types
+  const typeDistribution = selectedRack.devices.reduce((acc: any, device) => {
+    acc[device.type] = (acc[device.type] || 0) + 1;
+    return acc;
+  }, {});
+
+  const chartData = Object.keys(typeDistribution).map(type => ({
+    name: type,
+    value: typeDistribution[type],
+    color: type === "SERVER" ? "#10b981" : 
+           type === "SWITCH" ? "#3b82f6" : 
+           type === "ROUTER" ? "#f59e0b" : "#ef4444"
+  }));
+
+  // Add "Empty Space" to the chart for utilization focus
+  const usedU = selectedRack.devices.reduce((acc, d) => acc + d.uSize, 0);
+  const freeU = selectedRack.totalU - usedU;
+  
+  const utilizationData = [
+    { name: "Used U", value: usedU, color: "#3b82f6" },
+    { name: "Free U", value: freeU, color: "#f1f5f9" }
+  ];
 
   const [newDevice, setNewDevice] = useState<Omit<Device, "id">>({
     name: "",
@@ -101,16 +91,10 @@ export default function RackManagement() {
 
   const handleAddRack = (e: React.FormEvent) => {
     e.preventDefault();
-    const rack: Rack = {
-      ...newRack,
-      id: `rack-${Math.random().toString(36).substr(2, 9)}`,
-      devices: []
-    };
-    setRacks(prev => [...prev, rack]);
-    setSelectedRackId(rack.id);
+    addRack(newRack);
     setIsAddRackOpen(false);
     setNewRack({ name: "", location: locations[0]?.name || "Data Center A", totalU: 42 });
-    toast.success(`Rack ${rack.name} created successfully.`);
+    toast.success(`Rack ${newRack.name} created successfully.`);
   };
 
   const handleAddDevice = (e: React.FormEvent) => {
@@ -134,16 +118,7 @@ export default function RackManagement() {
       return;
     }
 
-    const device: Device = {
-      ...newDevice,
-      id: Math.random().toString(36).substr(2, 9)
-    };
-
-    setRacks(prev => prev.map(r => 
-      r.id === selectedRackId 
-        ? { ...r, devices: [...r.devices, device] }
-        : r
-    ));
+    addDeviceToRack(selectedRackId, newDevice);
 
     setIsAddDeviceOpen(false);
     setNewDevice({ name: "", uPos: 1, uSize: 1, type: "SERVER" });
@@ -151,11 +126,7 @@ export default function RackManagement() {
   };
 
   const removeDevice = (deviceId: string) => {
-    setRacks(prev => prev.map(r => 
-      r.id === selectedRackId 
-        ? { ...r, devices: r.devices.filter(d => d.id !== deviceId) }
-        : r
-    ));
+    removeDeviceFromRack(selectedRackId, deviceId);
     toast.success("Equipment removed.");
   };
 
@@ -362,6 +333,53 @@ export default function RackManagement() {
 
           <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
             <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <PieChartIcon className="w-5 h-5 text-brand-blue" />
+                Rack Capacity
+              </CardTitle>
+              <CardDescription>Utilization & Device Distribution</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="h-[200px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={utilizationData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={70}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {utilizationData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip 
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Device Types</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {chartData.map((item) => (
+                    <div key={item.name} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-[10px] font-bold text-slate-600 uppercase">{item.name}</span>
+                      <span className="ml-auto text-xs font-bold text-slate-900">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="pb-3">
               <CardTitle className="text-lg font-bold">Equipment List</CardTitle>
               <CardDescription>{selectedRack.devices.length} devices in {selectedRack.name}</CardDescription>
             </CardHeader>
@@ -403,7 +421,16 @@ export default function RackManagement() {
 
         {/* 3D Visualization */}
         <div className="lg:col-span-2 space-y-6">
-          <Rack3D totalU={selectedRack.totalU} devices={selectedRack.devices} />
+          <Suspense fallback={
+            <div className="w-full h-[600px] bg-slate-950 rounded-3xl flex items-center justify-center border border-white/5">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-12 h-12 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+                <p className="text-slate-400 font-medium">Initializing 3D Engine...</p>
+              </div>
+            </div>
+          }>
+            {selectedRack && <Rack3D totalU={selectedRack.totalU} devices={selectedRack.devices} />}
+          </Suspense>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="border-none shadow-sm rounded-2xl bg-white p-6">

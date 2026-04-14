@@ -25,7 +25,10 @@ import {
   Tooltip, 
   ResponsiveContainer,
   AreaChart,
-  Area
+  Area,
+  PieChart,
+  Pie,
+  Cell
 } from "recharts";
 
 const data = [
@@ -40,12 +43,24 @@ const data = [
 
 import { useDevices } from "@/src/lib/DeviceContext";
 import { useAlerts } from "@/src/lib/AlertContext";
+import { useRack } from "@/src/lib/RackContext";
 
 export default function Dashboard() {
   const { devices } = useDevices();
   const { alerts } = useAlerts();
+  const { racks } = useRack();
 
   const recentAlerts = alerts.slice(0, 5);
+
+  // Calculate overall rack capacity
+  const totalU = racks.reduce((acc, r) => acc + r.totalU, 0);
+  const usedU = racks.reduce((acc, r) => acc + r.devices.reduce((dAcc, d) => dAcc + d.uSize, 0), 0);
+  const freeU = totalU - usedU;
+
+  const rackCapacityData = [
+    { name: "Used", value: usedU, color: "#2563EB" },
+    { name: "Free", value: freeU, color: "#F1F5F9" }
+  ];
 
   const stats = [
     { label: "Total Devices", value: devices.length.toString(), change: "+0", trend: "neutral", icon: Server, color: "blue" },
@@ -169,6 +184,38 @@ export default function Dashboard() {
                 />
               </AreaChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm rounded-2xl">
+          <CardHeader>
+            <CardTitle className="text-lg font-bold">Rack Capacity</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[280px] flex flex-col items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={rackCapacityData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {rackCapacityData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="mt-4 text-center">
+              <p className="text-2xl font-bold text-slate-900">{Math.round((usedU / totalU) * 100)}%</p>
+              <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Overall Utilization</p>
+            </div>
           </CardContent>
         </Card>
 

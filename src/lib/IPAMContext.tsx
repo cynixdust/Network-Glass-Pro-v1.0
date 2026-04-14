@@ -11,12 +11,13 @@ export interface Subnet {
   total: number;
   site: string;
   status: "HEALTHY" | "WARNING" | "CRITICAL" | "SCANNING";
+  scanProgress?: number;
   lastScanned?: string;
 }
 
 interface IPAMContextType {
   subnets: Subnet[];
-  addSubnet: (subnet: Omit<Subnet, "id" | "used" | "free" | "offline" | "reserved" | "status" | "lastScanned">) => void;
+  addSubnet: (subnet: Omit<Subnet, "id" | "used" | "free" | "offline" | "reserved" | "status" | "lastScanned" | "scanProgress">) => void;
   updateSubnet: (id: string, subnet: Partial<Subnet>) => void;
   deleteSubnet: (id: string) => void;
   scanSubnet: (id: string) => void;
@@ -36,40 +37,51 @@ export function IPAMProvider({ children }: { children: React.ReactNode }) {
 
   const scanSubnet = (id: string) => {
     setSubnets((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: "SCANNING" } : s))
+      prev.map((s) => (s.id === id ? { ...s, status: "SCANNING", scanProgress: 0 } : s))
     );
 
-    // Simulate network scan
-    setTimeout(() => {
-      setSubnets((prev) =>
-        prev.map((s) => {
-          if (s.id !== id) return s;
-          
-          // Generate realistic sparse stats (user mentioned having ~6 devices)
-          const total = s.total;
-          const used = Math.min(total, Math.floor(Math.random() * 5) + 3); // 3-8 devices
-          const offline = Math.floor(Math.random() * 2); // 0-1 offline
-          const reserved = 2; // Default reserved (gateway, etc)
-          const free = total - used - offline - reserved;
-          
-          const utilization = used / total;
-          const status = utilization > 0.9 ? "CRITICAL" : utilization > 0.7 ? "WARNING" : "HEALTHY";
+    // Simulate network scan with progress
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.floor(Math.random() * 15) + 5;
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(interval);
+        
+        setSubnets((prev) =>
+          prev.map((s) => {
+            if (s.id !== id) return s;
+            
+            const total = s.total;
+            const used = Math.min(total, Math.floor(Math.random() * 5) + 3); 
+            const offline = Math.floor(Math.random() * 2); 
+            const reserved = 2; 
+            const free = total - used - offline - reserved;
+            
+            const utilization = used / total;
+            const status = utilization > 0.9 ? "CRITICAL" : utilization > 0.7 ? "WARNING" : "HEALTHY";
 
-          return {
-            ...s,
-            used,
-            free,
-            offline,
-            reserved,
-            status,
-            lastScanned: new Date().toLocaleString(),
-          };
-        })
-      );
-    }, 3000);
+            return {
+              ...s,
+              used,
+              free,
+              offline,
+              reserved,
+              status,
+              scanProgress: undefined,
+              lastScanned: new Date().toLocaleString(),
+            };
+          })
+        );
+      } else {
+        setSubnets((prev) =>
+          prev.map((s) => (s.id === id ? { ...s, scanProgress: progress } : s))
+        );
+      }
+    }, 400);
   };
 
-  const addSubnet = (subnet: Omit<Subnet, "id" | "used" | "free" | "offline" | "reserved" | "status" | "lastScanned">) => {
+  const addSubnet = (subnet: Omit<Subnet, "id" | "used" | "free" | "offline" | "reserved" | "status" | "lastScanned" | "scanProgress">) => {
     const id = Math.random().toString(36).substr(2, 9);
     const newSubnet: Subnet = {
       ...subnet,
@@ -79,11 +91,12 @@ export function IPAMProvider({ children }: { children: React.ReactNode }) {
       offline: 0,
       reserved: 0,
       status: "SCANNING",
+      scanProgress: 0,
     };
     setSubnets((prev) => [...prev, newSubnet]);
     
-    // Automatically trigger scan
-    scanSubnet(id);
+    // Automatically trigger scan in next tick to ensure state is updated
+    setTimeout(() => scanSubnet(id), 0);
   };
 
   const updateSubnet = (id: string, updatedFields: Partial<Subnet>) => {
