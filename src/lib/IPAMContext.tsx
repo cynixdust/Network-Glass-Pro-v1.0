@@ -53,9 +53,11 @@ export function IPAMProvider({ children }: { children: React.ReactNode }) {
             if (s.id !== id) return s;
             
             const total = s.total;
-            const used = Math.min(total, Math.floor(Math.random() * 5) + 3); 
-            const offline = Math.floor(Math.random() * 2); 
-            const reserved = 2; 
+            // Simulate finding more devices (15-45) if the subnet is large enough
+            const maxUsed = Math.min(total - 5, 45);
+            const used = Math.min(total, Math.floor(Math.random() * (maxUsed - 15 + 1)) + 15); 
+            const offline = Math.floor(Math.random() * 5); 
+            const reserved = Math.min(total - used - offline, 5); 
             const free = total - used - offline - reserved;
             
             const utilization = used / total;

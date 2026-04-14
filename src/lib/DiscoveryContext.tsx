@@ -70,12 +70,20 @@ export function DiscoveryProvider({ children }: { children: React.ReactNode }) {
         
         if ((job.progress || 0) >= 100) {
           clearInterval(interval);
-          return prev.map(j => j.id === id ? { ...j, status: "COMPLETED", lastRun: "Just now", progress: 100 } : j);
+          // Simulate finding a realistic number of devices (12-28)
+          const found = Math.floor(Math.random() * 16) + 12;
+          return prev.map(j => j.id === id ? { 
+            ...j, 
+            status: "COMPLETED", 
+            lastRun: new Date().toLocaleString(), 
+            progress: 100,
+            devicesFound: found
+          } : j);
         }
         
         return prev.map(j => j.id === id ? { ...j, progress: (j.progress || 0) + 10 } : j);
       });
-    }, 1000);
+    }, 800);
   };
 
   const stopJob = (id: string) => {
