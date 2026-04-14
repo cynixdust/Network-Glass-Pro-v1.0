@@ -9,7 +9,8 @@ import {
   Network, 
   CheckCircle2, 
   Clock,
-  MoreHorizontal
+  MoreHorizontal,
+  Server
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
@@ -19,6 +20,7 @@ import { cn } from "@/src/lib/utils";
 import { toast } from "sonner";
 
 import { useDiscovery, DiscoveryJob } from "@/src/lib/DiscoveryContext";
+import { useDevices, Device } from "@/src/lib/DeviceContext";
 import { 
   Dialog, 
   DialogContent, 
@@ -28,14 +30,53 @@ import {
   DialogFooter
 } from "@/src/components/ui/dialog";
 import { Label } from "@/src/components/ui/label";
-import { Square, Trash2 as TrashIcon, Edit } from "lucide-react";
+import { Square, Trash2 as TrashIcon, Edit, Eye, Download } from "lucide-react";
+
+// Mock discovered devices for the dialog
+const MOCK_DISCOVERED_DEVICES = [
+  { hostname: "SRV-PROD-01", ip: "192.168.1.10", type: "SERVER", os: "Windows Server 2022", vendor: "Dell", model: "PowerEdge R750" },
+  { hostname: "SW-CORE-02", ip: "192.168.1.2", type: "SWITCH", os: "Cisco IOS-XE", vendor: "Cisco", model: "Catalyst 9300" },
+  { hostname: "NAS-BACKUP", ip: "192.168.1.50", type: "SERVER", os: "TrueNAS CORE", vendor: "Custom", model: "Storage Node" },
+  { hostname: "FW-EDGE-01", ip: "192.168.1.1", type: "FIREWALL", os: "FortiOS", vendor: "Fortinet", model: "FortiGate 100F" },
+  { hostname: "WAP-OFFICE", ip: "192.168.1.25", type: "ROUTER", os: "UniFi OS", vendor: "Ubiquiti", model: "U6-Pro" },
+];
 
 export default function Discovery() {
   const { jobs, addJob, updateJob, deleteJob, startJob, stopJob } = useDiscovery();
+  const { addDevice, devices: existingDevices } = useDevices();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isResultsDialogOpen, setIsResultsDialogOpen] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<DiscoveryJob | null>(null);
   const [editingJob, setEditingJob] = useState<DiscoveryJob | null>(null);
   const [formData, setFormData] = useState({ name: "", range: "" });
+  const [importing, setImporting] = useState<string[]>([]);
+
+  const handleImport = (device: any) => {
+    setImporting(prev => [...prev, device.hostname]);
+    
+    // Simulate import delay
+    setTimeout(() => {
+      addDevice({
+        hostname: device.hostname,
+        ip: device.ip,
+        type: device.type,
+        os: device.os,
+        vendor: device.vendor,
+        model: device.model,
+        status: "UP",
+        location: "Main Office", // Default location
+      });
+      setImporting(prev => prev.filter(h => h !== device.hostname));
+      toast.success(`${device.hostname} imported to inventory.`);
+    }, 800);
+  };
+
+  const handleImportAll = () => {
+    MOCK_DISCOVERED_DEVICES.forEach((device, index) => {
+      setTimeout(() => handleImport(device), index * 200);
+    });
+  };
 
   const handleAddJob = (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,6 +261,19 @@ export default function Discovery() {
                     >
                       <Settings className="w-4 h-4 text-slate-600" />
                     </Button>
+                    {job.status === "COMPLETED" && (
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        className="rounded-lg border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                        onClick={() => {
+                          setSelectedJob(job);
+                          setIsResultsDialogOpen(true);
+                        }}
+                      >
+                        <Eye className="w-4 h-4 text-emerald-600" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -334,6 +388,80 @@ export default function Discovery() {
               </div>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Discovery Results Dialog */}
+      <Dialog open={isResultsDialogOpen} onOpenChange={setIsResultsDialogOpen}>
+        <DialogContent className="sm:max-w-[700px] rounded-2xl border-none shadow-2xl">
+          <DialogHeader>
+            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-4">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-xl font-bold">Discovery Results: {selectedJob?.name}</DialogTitle>
+            <DialogDescription>
+              The following devices were found in the range {selectedJob?.range}.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="max-h-[400px] overflow-y-auto py-4 space-y-3">
+            {MOCK_DISCOVERED_DEVICES.map((device) => {
+              const isAlreadyAdded = existingDevices.some(d => d.ip === device.ip);
+              const isImporting = importing.includes(device.hostname);
+              
+              return (
+                <div key={device.ip} className="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-white rounded-lg shadow-sm">
+                      <Server className="w-5 h-5 text-slate-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">{device.hostname}</h4>
+                      <p className="text-xs text-slate-500 font-mono">{device.ip} • {device.vendor} {device.model}</p>
+                    </div>
+                  </div>
+                  
+                  <Button
+                    size="sm"
+                    disabled={isAlreadyAdded || isImporting}
+                    onClick={() => handleImport(device)}
+                    className={cn(
+                      "rounded-lg gap-2",
+                      isAlreadyAdded 
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    {isImporting ? (
+                      <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                    ) : isAlreadyAdded ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    {isAlreadyAdded ? "Imported" : "Import"}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+
+          <DialogFooter className="pt-4 flex justify-between items-center sm:justify-between">
+            <p className="text-xs text-slate-400 font-medium">
+              {MOCK_DISCOVERED_DEVICES.length} devices identified
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsResultsDialogOpen(false)} className="rounded-xl border-slate-200">
+                Close
+              </Button>
+              <Button 
+                onClick={handleImportAll}
+                className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl gap-2"
+              >
+                Import All
+              </Button>
+            </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
